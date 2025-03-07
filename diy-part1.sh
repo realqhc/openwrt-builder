@@ -7,10 +7,10 @@
 # Author: P3TERX
 # Blog: https://p3terx.com
 #=============================================================
-sed -e 's,git.openwrt.org/feed,github.com/openwrt,g; s,git.openwrt.org/project,github.com/openwrt,g' feeds.conf.default
+sed -i 's,git.openwrt.org/feed,github.com/openwrt,g; s,git.openwrt.org/project,github.com/openwrt,g' feeds.conf.default
 echo "src-git openwrt_passwall https://github.com/xiaorouji/openwrt-passwall.git" >> "feeds.conf.default"
 echo "src-git openwrt_passwall2 https://github.com/xiaorouji/openwrt-passwall2.git" >> "feeds.conf.default"
 echo "src-git openwrt_passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git" >> "feeds.conf.default"
 echo "src-git an https://github.com/Azusachan/openwrt-package.git" >> "feeds.conf.default"
-sed -e 's,github.com,gh-proxy.com/github.com,g' feeds.conf.default
+sed -i 's,github.com,gh-proxy.com/github.com,g' feeds.conf.default
 mv ../projectsmirrors.json ./scripts/
