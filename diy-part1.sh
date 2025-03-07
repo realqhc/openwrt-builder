@@ -7,6 +7,7 @@
 # Author: P3TERX
 # Blog: https://p3terx.com
 #=============================================================
+sed -e 's,git.openwrt.org/feed,github.com/openwrt,g; s,git.openwrt.org/project,github.com/openwrt,g' feeds.conf.default
 echo "src-git openwrt_passwall https://github.com/xiaorouji/openwrt-passwall.git" >> "feeds.conf.default"
 echo "src-git openwrt_passwall2 https://github.com/xiaorouji/openwrt-passwall2.git" >> "feeds.conf.default"
 echo "src-git openwrt_passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git" >> "feeds.conf.default"
