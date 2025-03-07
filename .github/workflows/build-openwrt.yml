@@ -67,7 +67,6 @@ jobs:
           sudo -E apt-get -qq update && sudo apt-get -qq upgrade
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
-
       - name: Clone source code
         run: |
           df -hT
