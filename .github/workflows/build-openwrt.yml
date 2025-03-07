@@ -72,6 +72,7 @@ jobs:
         run: |
           df -hT
           ln -sf /home/anakano/build/openwrt $GITHUB_WORKSPACE/openwrt
+          cd openwrt && git pull
 
       - name: Update feeds
         run: cd openwrt && ./scripts/feeds update -a
