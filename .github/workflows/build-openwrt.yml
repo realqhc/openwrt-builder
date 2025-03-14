@@ -41,6 +41,8 @@ env:
   UPLOAD_WETRANSFER: false
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+  USER: ubuntu
+  
 
 jobs:
   build_openwrt:
@@ -71,7 +73,7 @@ jobs:
       - name: Clone source code
         run: |
           df -hT
-          ln -sf /home/anakano/build/openwrt $GITHUB_WORKSPACE/openwrt
+          ln -sf /home/${{ USER }}/build/openwrt ${{ GITHUB_WORKSPACE }}/openwrt
           cd openwrt && git pull
 
       - name: Update feeds
