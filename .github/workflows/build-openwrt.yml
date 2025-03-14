@@ -73,7 +73,7 @@ jobs:
       - name: Clone source code
         run: |
           df -hT
-          ln -sf /home/${{ env.USER }}/build/openwrt ${{ GITHUB_WORKSPACE }}/openwrt
+          ln -sf /home/${{ env.USER }}/build/openwrt $GITHUB_WORKSPACE/openwrt
           cd openwrt && git pull
 
       - name: Update feeds
