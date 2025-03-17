@@ -66,6 +66,8 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          # I know it is bad but it is under systemd-nspawn
+          export FORCE_UNSAFE_CONFIGURE=1
           sudo -E apt-get -qq update && sudo apt-get -qq upgrade
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
