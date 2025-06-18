@@ -76,7 +76,7 @@ jobs:
         run: |
           df -hT
           ln -sf /home/${{ env.USER }}/build/openwrt $GITHUB_WORKSPACE/openwrt
-          cd openwrt && git pull
+          cd openwrt && git fetch --all && git reset --hard origin/main
 
       - name: Update feeds
         run: cd openwrt && ./scripts/feeds update -a
