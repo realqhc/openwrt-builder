@@ -63,3 +63,5 @@
 rm -rf feeds/packages/lang/golang
 git clone https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
 sed -i 's/$(TAR_OPTIONS)/$(TAR_OPTIONS) --no-same-owner/' include/unpack.mk
+# https://github.com/ZqinKing/wrt_release/commit/24fdb2727ababbea7b8c82b34c0b3def5ed6672c#diff-e14594f6bb9b29ac0146c04e78ae33e8e92f2f00709fefab97359dea31b94d11
+sed -i 's/download-ci-llvm=true/download-ci-llvm=false/g' "feeds/packages/lang/rust/Makefile"
