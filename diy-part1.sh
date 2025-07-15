@@ -12,4 +12,4 @@ echo "src-git openwrt_passwall https://github.com/xiaorouji/openwrt-passwall.git
 echo "src-git openwrt_passwall2 https://github.com/xiaorouji/openwrt-passwall2.git" >> "feeds.conf.default"
 echo "src-git openwrt_passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git" >> "feeds.conf.default"
 echo "src-git an https://github.com/Azusachan/openwrt-package.git" >> "feeds.conf.default"
-sed -i 's,github.com,ghfast.top/https://github.com/,g' feeds.conf.default
+sed -i 's,github.com,hk.gh-proxy.com/https://github.com/,g' feeds.conf.default
