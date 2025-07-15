@@ -62,3 +62,4 @@
 
 rm -rf feeds/packages/lang/golang
 git clone https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
+sed -i 's/$(TAR_OPTIONS)/$(TAR_OPTIONS) --no-same-owner/' include/unpack.mk
