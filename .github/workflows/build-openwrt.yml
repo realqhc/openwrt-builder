@@ -77,7 +77,12 @@ jobs:
           df -hT
           ln -sf /home/${{ env.USER }}/build/openwrt $GITHUB_WORKSPACE/openwrt
           cd openwrt && git fetch --all && git reset --hard origin/main
-          cd feeds/packages && git fetch --all && git reset --hard origin/master
+          # Only update feeds/packages if it already exists (avoid failure after a full cleanup)
+          if [ -d "feeds/packages" ]; then
+            cd feeds/packages && git fetch --all && git reset --hard origin/master
+          else
+            echo "feeds/packages not found — skipping feeds/packages git reset"
+          fi
 
       - name: Load custom feeds
         run: |
