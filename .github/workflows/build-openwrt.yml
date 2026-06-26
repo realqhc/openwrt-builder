@@ -92,12 +92,14 @@ jobs:
           mv $GITHUB_WORKSPACE/projectsmirrors.json ./scripts/
 
       - name: Update feeds
-        run: cd openwrt && ./scripts/feeds update -a
+        run: ｜
+          cd openwrt
+          rm -rf feeds/openwrt_passwall feeds/openwrt_passwall2 feeds/openwrt_passwall_packages
+          ./scripts/feeds update -a
 
       - name: Install feeds
         run: |
           cd openwrt
-          rm -rf feeds/openwrt_passwall feeds/openwrt_passwall2 feeds/openwrt_passwall_packages
           ./scripts/feeds install -a
 
       - name: Load custom configuration
