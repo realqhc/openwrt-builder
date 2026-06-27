@@ -122,7 +122,13 @@ jobs:
           git --version
           echo "git tar.umask: $(git config --show-origin --get tar.umask)"
           tar --version | head -n 1
-          zstd --version
+          if command -v zstd >/dev/null 2>&1; then
+            zstd --version
+          elif [ -x staging_dir/host/bin/zstd ]; then
+            staging_dir/host/bin/zstd --version
+          else
+            echo "zstd: not found"
+          fi
           echo "Feeds config:"
           sed -n '/^[^#]/p' feeds.conf.default
           echo "Feeds revisions:"
