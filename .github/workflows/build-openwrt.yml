@@ -93,6 +93,24 @@ jobs:
           $GITHUB_WORKSPACE/$DIY_P1_SH
           mv $GITHUB_WORKSPACE/projectsmirrors.json ./scripts/
 
+      - name: Configure Cargo registry mirror
+        run: |
+          cd openwrt
+          mkdir -p dl/cargo
+          cat > dl/cargo/config.toml <<'EOF'
+          [source.crates-io]
+          replace-with = "ustc"
+
+          [source.ustc]
+          registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"
+
+          [net]
+          retry = 5
+
+          [http]
+          timeout = 120
+          EOF
+
       - name: Update feeds
         run: |
           cd openwrt
@@ -129,6 +147,8 @@ jobs:
           else
             echo "zstd: not found"
           fi
+          echo "Cargo config:"
+          sed -n '1,120p' dl/cargo/config.toml
           echo "Feeds config:"
           sed -n '/^[^#]/p' feeds.conf.default
           echo "Feeds revisions:"
