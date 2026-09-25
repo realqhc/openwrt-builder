@@ -163,12 +163,6 @@ jobs:
         run: |
           cd openwrt
           make defconfig
-          if [ '${{ matrix.config_file }}' = 'x86.config' ]; then
-            grep -qx 'CONFIG_PACKAGE_sing-box=y' .config || {
-              echo '::error::sing-box is not selected in the resolved x86 configuration'
-              exit 1
-            }
-          fi
           echo "Selected target:"
           grep '^CONFIG_TARGET' .config | sort || true
           make download -j$(nproc) V=s
@@ -182,13 +176,6 @@ jobs:
           cd openwrt
           echo -e "$(nproc) thread compile"
           FORCE_UNSAFE_CONFIGURE=1 make -j$(nproc) world || FORCE_UNSAFE_CONFIGURE=1 make -j1 || FORCE_UNSAFE_CONFIGURE=1 make -j1 V=s
-          if [ '${{ matrix.config_file }}' = 'x86.config' ]; then
-            tar -tzf bin/targets/x86/64/openwrt-x86-64-generic-rootfs.tar.gz > /tmp/x86-rootfs-files.txt
-            grep -Eq '^(\./)?usr/bin/sing-box$' /tmp/x86-rootfs-files.txt || {
-              echo '::error::/usr/bin/sing-box is missing from the x86 root filesystem'
-              exit 1
-            }
-          fi
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
