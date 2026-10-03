@@ -1,5 +1,9 @@
 name: Cleanup Build Folder
 
+concurrency:
+  group: openwrt-build-trees-${{ github.repository }}
+  cancel-in-progress: false
+
 on:
   repository_dispatch:
   workflow_dispatch:
@@ -11,8 +15,10 @@ jobs:
   cleanup:
     runs-on: [self-hosted, linux, x64]
     steps:
-      - name: 'Cleanup openwrt folder'
+      - name: Checkout
+        uses: realqhc/checkout@main
+
+      - name: Clean all OpenWrt build trees
         run: |
-          export FORCE_UNSAFE_CONFIGURE=1
-          cd /home/${{ env.USER }}/build/openwrt
-          make distclean
+          export OPENWRT_BUILD_ROOT=/home/${{ env.USER }}/build
+          bash scripts/build-tree.sh clean

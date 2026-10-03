@@ -8,6 +8,11 @@
 
 name: Build OpenWrt
 
+# Share this group with cleanup-build.yml so cleanup cannot interrupt a build.
+concurrency:
+  group: openwrt-build-trees-${{ github.repository }}
+  cancel-in-progress: false
+
 on:
   repository_dispatch:
   workflow_dispatch:
@@ -42,6 +47,8 @@ env:
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
   USER: ubuntu
+  # Keep the standard extraction flags; avoid unmapped archive owners in nspawn.
+  OPENWRT_TAR_OPTIONS: '-xf - --no-same-owner'
   GIT_CONFIG_COUNT: '1'
   GIT_CONFIG_KEY_0: tar.umask
   GIT_CONFIG_VALUE_0: '0022'
@@ -50,6 +57,8 @@ env:
 jobs:
   build_openwrt:
     strategy:
+      fail-fast: false
+      max-parallel: 1
       matrix:
         config_file: [acrh17.config, x86.config, mt6000.config]
     runs-on: [self-hosted, linux, x64]
@@ -75,16 +84,13 @@ jobs:
           sudo apt-get -qq autoremove --purge
           sudo apt-get -qq clean
 
-      - name: Clone source code
+      - name: Update isolated source tree
         run: |
           df -hT
-          ln -sf /home/${{ env.USER }}/build/openwrt $GITHUB_WORKSPACE/openwrt
-          cd openwrt
-          git fetch --all
-          git reset --hard origin/main
-          git clean -ffdx -e dl -e .ccache
-          git rev-parse HEAD
-          git log -1 --oneline
+          export OPENWRT_BUILD_ROOT=/home/${{ env.USER }}/build
+          bash scripts/build-tree.sh prepare '${{ matrix.config_file }}'
+          config_file='${{ matrix.config_file }}'
+          ln -s "$OPENWRT_BUILD_ROOT/openwrt-${config_file%.config}" "$GITHUB_WORKSPACE/openwrt"
 
       - name: Load custom feeds
         run: |
@@ -114,13 +120,7 @@ jobs:
       - name: Update feeds
         run: |
           cd openwrt
-          rm -rf feeds/openwrt_passwall feeds/openwrt_passwall2 feeds/openwrt_passwall_packages
           ./scripts/feeds update -a
-
-      - name: Install feeds
-        run: |
-          cd openwrt
-          ./scripts/feeds install -a
 
       - name: Load custom configuration
         run: |
@@ -129,6 +129,14 @@ jobs:
           chmod +x $DIY_P2_SH
           cd openwrt
           $GITHUB_WORKSPACE/$DIY_P2_SH
+
+      - name: Install feeds
+        run: |
+          cd openwrt
+          # Rescan after replacing upstream Go.
+          ./scripts/feeds update -i packages
+          ./scripts/feeds install -p golang golang
+          ./scripts/feeds install -a
 
       - name: Print build context
         run: |
@@ -162,20 +170,20 @@ jobs:
         id: package
         run: |
           cd openwrt
-          make defconfig
+          make defconfig "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS"
+          bash "$GITHUB_WORKSPACE/scripts/build-tree.sh" check-cache '${{ matrix.config_file }}'
           echo "Selected target:"
           grep '^CONFIG_TARGET' .config | sort || true
-          make download -j$(nproc) V=s
+          make download -j$(nproc) V=s "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS"
 
       - name: Compile the firmware
         id: compile
         run: |
           # use proxy for golang
           export GOPROXY=https://goproxy.cn,direct
-          export TAR_OPTIONS=--no-same-owner
           cd openwrt
           echo -e "$(nproc) thread compile"
-          FORCE_UNSAFE_CONFIGURE=1 make -j$(nproc) world || FORCE_UNSAFE_CONFIGURE=1 make -j1 || FORCE_UNSAFE_CONFIGURE=1 make -j1 V=s
+          FORCE_UNSAFE_CONFIGURE=1 make -j$(nproc) world "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS" || FORCE_UNSAFE_CONFIGURE=1 make -j1 "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS" || FORCE_UNSAFE_CONFIGURE=1 make -j1 V=s "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS"
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -196,9 +204,13 @@ jobs:
         id: organize
         if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
         run: |
-          cd openwrt/bin/targets/$(grep -m 1 '^CONFIG_TARGET.*=y' openwrt/.config | sed -r 's/.*TARGET_(.*)=y/\1/')/*
-          rm -rf packages
-          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          board=$(sed -n 's/^CONFIG_TARGET_BOARD="\(.*\)"/\1/p' openwrt/.config)
+          subtarget=$(sed -n 's/^CONFIG_TARGET_SUBTARGET="\(.*\)"/\1/p' openwrt/.config)
+          source_dir="$GITHUB_WORKSPACE/openwrt/bin/targets/$board/$subtarget"
+          firmware_dir="$GITHUB_WORKSPACE/firmware"
+          mkdir -p "$firmware_dir"
+          find "$source_dir" -maxdepth 1 -type f -exec cp -t "$firmware_dir" -- {} +
+          echo "FIRMWARE=$firmware_dir" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Upload firmware directory
