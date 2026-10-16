@@ -47,8 +47,9 @@ env:
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
   USER: ubuntu
-  # Keep the standard extraction flags; avoid unmapped archive owners in nspawn.
-  OPENWRT_TAR_OPTIONS: '-xf - --no-same-owner'
+  # Keep OpenWrt's extraction flags; GNU tar also reads TAR_OPTIONS from the
+  # environment, so passing those flags through make would apply them twice.
+  OPENWRT_TAR: 'tar --no-same-owner'
   GIT_CONFIG_COUNT: '1'
   GIT_CONFIG_KEY_0: tar.umask
   GIT_CONFIG_VALUE_0: '0022'
@@ -170,11 +171,11 @@ jobs:
         id: package
         run: |
           cd openwrt
-          make defconfig "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS"
+          make defconfig "TAR=$OPENWRT_TAR"
           bash "$GITHUB_WORKSPACE/scripts/build-tree.sh" check-cache '${{ matrix.config_file }}'
           echo "Selected target:"
           grep '^CONFIG_TARGET' .config | sort || true
-          make download -j$(nproc) V=s "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS"
+          make download -j$(nproc) V=s "TAR=$OPENWRT_TAR"
 
       - name: Compile the firmware
         id: compile
@@ -183,7 +184,7 @@ jobs:
           export GOPROXY=https://goproxy.cn,direct
           cd openwrt
           echo -e "$(nproc) thread compile"
-          FORCE_UNSAFE_CONFIGURE=1 make -j$(nproc) world "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS" || FORCE_UNSAFE_CONFIGURE=1 make -j1 "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS" || FORCE_UNSAFE_CONFIGURE=1 make -j1 V=s "TAR_OPTIONS=$OPENWRT_TAR_OPTIONS"
+          FORCE_UNSAFE_CONFIGURE=1 make -j$(nproc) world "TAR=$OPENWRT_TAR" || FORCE_UNSAFE_CONFIGURE=1 make -j1 "TAR=$OPENWRT_TAR" || FORCE_UNSAFE_CONFIGURE=1 make -j1 V=s "TAR=$OPENWRT_TAR"
           echo "status=success" >> $GITHUB_OUTPUT
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
