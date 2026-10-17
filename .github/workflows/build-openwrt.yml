@@ -47,9 +47,9 @@ env:
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
   USER: ubuntu
-  # Keep OpenWrt's extraction flags; GNU tar also reads TAR_OPTIONS from the
-  # environment, so passing those flags through make would apply them twice.
-  OPENWRT_TAR: 'tar --no-same-owner'
+  # Set only the ownership option in tar's environment. This keeps OpenWrt's
+  # extraction flags and supports recipes using old-style arguments such as xvf.
+  OPENWRT_TAR: 'env TAR_OPTIONS=--no-same-owner tar'
   GIT_CONFIG_COUNT: '1'
   GIT_CONFIG_KEY_0: tar.umask
   GIT_CONFIG_VALUE_0: '0022'

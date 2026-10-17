@@ -23,9 +23,19 @@ separate feed on branch `26.x`. Old firmware files are removed before building;
 uploads are copied into the runner workspace without deleting binary packages.
 
 Source extraction uses the make command-line setting
-`TAR_OPTIONS="-xf - --no-same-owner"`, preserving normal extraction flags while
-avoiding archive ownership changes inside nspawn. It does not modify upstream
-`include/unpack.mk`. Rust uses the feed's original build configuration, which
+`TAR="env TAR_OPTIONS=--no-same-owner tar"`, preserving OpenWrt's extraction
+flags and old-style `tar xvf` calls while avoiding archive ownership changes
+inside nspawn. The full extraction flags must not be passed through make's
+`TAR_OPTIONS`: GNU tar would also read them from the environment and apply
+`-f` twice. This does not modify upstream `include/unpack.mk`.
+
+Source preparation also handles the short-lived upstream libjson-c duplicate
+patch from October 16, 2026, matching upstream revert `71e991a8c0`. It removes
+the duplicate only when both patches match the known upstream blobs, retaining
+the original memory-leak fix. Sources that already contain the revert need no
+change.
+
+Rust uses the feed's original build configuration, which
 already disables CI LLVM downloads; no local Rust Makefile patch is applied.
 
 Both workflows share one GitHub Actions concurrency group, with cancellation
@@ -44,7 +54,7 @@ directory for validation:
 ```bash
 bash scripts/build-tree.sh prepare x86.config
 # After applying feeds and DIY scripts:
-make -C "${OPENWRT_BUILD_ROOT:-/home/ubuntu/build}/openwrt-x86" defconfig 'TAR_OPTIONS=-xf - --no-same-owner'
+make -C "${OPENWRT_BUILD_ROOT:-/home/ubuntu/build}/openwrt-x86" defconfig 'TAR=env TAR_OPTIONS=--no-same-owner tar'
 bash scripts/build-tree.sh check-cache x86.config
 # Destructive: clears all build results and caches in the managed checkouts.
 bash scripts/build-tree.sh clean
