@@ -92,6 +92,7 @@ jobs:
           bash scripts/build-tree.sh prepare '${{ matrix.config_file }}'
           config_file='${{ matrix.config_file }}'
           ln -s "$OPENWRT_BUILD_ROOT/openwrt-${config_file%.config}" "$GITHUB_WORKSPACE/openwrt"
+          echo "OPENWRT_DL_DIR=$(readlink -f openwrt/dl)" >> "$GITHUB_ENV"
 
       - name: Load custom feeds
         run: |
@@ -103,8 +104,8 @@ jobs:
       - name: Configure Cargo registry mirror
         run: |
           cd openwrt
-          mkdir -p dl/cargo
-          cat > dl/cargo/config.toml <<'EOF'
+          mkdir -p "$OPENWRT_DL_DIR/cargo"
+          cat > "$OPENWRT_DL_DIR/cargo/config.toml" <<'EOF'
           [source.crates-io]
           replace-with = "ustc"
 
@@ -157,7 +158,8 @@ jobs:
             echo "zstd: not found"
           fi
           echo "Cargo config:"
-          sed -n '1,120p' dl/cargo/config.toml
+          echo "Shared downloads: $OPENWRT_DL_DIR"
+          sed -n '1,120p' "$OPENWRT_DL_DIR/cargo/config.toml"
           echo "Feeds config:"
           sed -n '/^[^#]/p' feeds.conf.default
           echo "Feeds revisions:"

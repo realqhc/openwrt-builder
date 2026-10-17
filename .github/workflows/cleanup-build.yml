@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: realqhc/checkout@main
 
-      - name: Clean all OpenWrt build trees
+      - name: Clean isolated build trees and shared downloads
         run: |
           export OPENWRT_BUILD_ROOT=/home/${{ env.USER }}/build
           bash scripts/build-tree.sh clean

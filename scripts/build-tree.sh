@@ -3,6 +3,8 @@ set -euo pipefail
 
 # Keep the tree at a stable path: built host tools can contain absolute paths.
 build_root=${OPENWRT_BUILD_ROOT:-/home/ubuntu/build}
+build_root=$(realpath -m -- "$build_root")
+shared_dl="$build_root/dl"
 repo_url=${REPO_URL:-https://gh-proxy.com/github.com/openwrt/openwrt}
 repo_branch=${REPO_BRANCH:-main}
 
@@ -13,6 +15,38 @@ target_tree() {
       ;;
     *) echo "Unknown build configuration: $1" >&2; return 1 ;;
   esac
+}
+
+share_downloads() {
+  local tree=$1
+  mkdir -p "$shared_dl"
+  if [[ -L "$tree/dl" ]]; then
+    [[ $(readlink -f -- "$tree/dl") == "$shared_dl" ]] || {
+      echo "Unexpected download cache link: $tree/dl" >&2; return 1;
+    }
+    return 0
+  fi
+  if [[ -e "$tree/dl" ]]; then
+    # Keep existing common files. OpenWrt/Go/Cargo validate cached downloads
+    # before use; incomplete transfers and process-local Cargo state are skipped.
+    rsync -a --ignore-existing --exclude='*.dl' --exclude='*.hash' \
+      --exclude='*.tmp*' --exclude='*.partial' --exclude='*.lock' \
+      --exclude='/cargo/.package-cache*' --exclude='/cargo/.global-cache*' \
+      --include='/go-mod-cache/cache/***' --exclude='/go-mod-cache/*' \
+      "$tree/dl/" "$shared_dl/"
+    rm -rf -- "$tree/dl"
+  fi
+  ln -s "$shared_dl" "$tree/dl"
+}
+
+migrate_downloads() {
+  local tree
+  for tree in "$build_root/openwrt-acrh17" "$build_root/openwrt-x86" \
+    "$build_root/openwrt-mt6000" "$build_root/openwrt"; do
+    [[ -d "$tree/.git" ]] || continue
+    echo "Sharing downloads from $tree at $shared_dl"
+    share_downloads "$tree"
+  done
 }
 
 prepare_tree() {
@@ -36,6 +70,7 @@ prepare_tree() {
   # Refresh generated metadata and feed links, retaining compiled dependencies.
   git clean -ffdx -e /dl/ -e /.ccache/ -e /build_dir/ -e /staging_dir/ \
     -e /bin/ -e /feeds/ -e /.builder-cache/ -e '/key-build*'
+  share_downloads "$tree"
 
   # Keep binary packages, but never publish images left by an earlier run.
   if [[ -d bin/targets ]]; then
@@ -100,12 +135,19 @@ clean_trees() {
       status=1
     fi
   done
+  # distclean unlinks each tree's dl symlink. Delete its common target once,
+  # only after all build trees have been cleaned successfully.
+  if (( status == 0 )); then
+    echo "Removing shared downloads and Cargo cache from $shared_dl"
+    rm -rf -- "$shared_dl"
+  fi
   return "$status"
 }
 
 case "${1:-}" in
   prepare) prepare_tree "${2:?Specify a configuration file}" ;;
+  migrate-downloads) migrate_downloads ;;
   check-cache) check_cache "${2:?Specify a configuration file}" ;;
   clean) clean_trees ;;
-  *) echo "Usage: $0 {prepare CONFIG|check-cache CONFIG|clean}" >&2; exit 1 ;;
+  *) echo "Usage: $0 {prepare CONFIG|migrate-downloads|check-cache CONFIG|clean}" >&2; exit 1 ;;
 esac
