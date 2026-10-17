@@ -1,0 +1,12 @@
+# Local router/environment data must never enter commits or release assets.
+/audit/
+/maintenance/
+/.cloudflare/
+/private/
+/backups/
+/.idea/
+/.vscode/
+.env
+.env.*
+__pycache__/
+*.py[cod]
