@@ -19,7 +19,10 @@ Subsequent runs retain `build_dir`, `staging_dir`, binary packages, downloads,
 feeds, signing keys and ccache. OpenWrt checks which packages need rebuilding.
 Changes to host-tool/toolchain sources or compiler configuration trigger
 `make dirclean` to rebuild dependent objects. Unchanged Go sources are kept in a
-separate feed on branch `26.x`. Old firmware files are removed before building;
+separate feed on branch `27.x` (Go 1.27.2 at the time of this change), meeting
+Tailscale 1.104.1's Go 1.27.1 minimum. Sing-box 1.14.0 no longer uses the old
+`go-json-experiment` dependency that required the earlier Go 1.26 pin.
+Old firmware files are removed before building;
 uploads are copied into the runner workspace without deleting binary packages.
 
 Source extraction uses the make command-line setting

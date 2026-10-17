@@ -13,4 +13,4 @@ echo "src-git openwrt_passwall2 https://github.com/Openwrt-Passwall/openwrt-pass
 echo "src-git openwrt_passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git" >> "feeds.conf.default"
 echo "src-git an https://github.com/realqhc/openwrt-package.git" >> "feeds.conf.default"
 # Keep the pinned Go compiler in its own feed so unchanged sources are reusable.
-echo "src-git golang https://github.com/sbwml/packages_lang_golang.git;26.x" >> "feeds.conf.default"
+echo "src-git golang https://github.com/sbwml/packages_lang_golang.git;27.x" >> "feeds.conf.default"

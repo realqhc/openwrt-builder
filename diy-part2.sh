@@ -61,6 +61,5 @@
 # git clone https://github.com/liuzhuoling2011/baidupcs-web.git package/lean/baidupcs-web
 
 rm -rf feeds/packages/lang/golang
-# Go 1.27 is currently incompatible with sing-box's go-json-experiment dependency.
 # Preserve the include path used by Go packages while reusing the separate feed.
 ln -s ../../golang feeds/packages/lang/golang
