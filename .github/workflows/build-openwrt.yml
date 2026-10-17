@@ -138,6 +138,8 @@ jobs:
           # Rescan after replacing upstream Go.
           ./scripts/feeds update -i packages
           ./scripts/feeds install -p golang golang
+          # Select reviewed proxy recipes before general feed installation.
+          python3 "$GITHUB_WORKSPACE/scripts/passwall-packages.py" select
           ./scripts/feeds install -a
 
       - name: Print build context
@@ -174,6 +176,7 @@ jobs:
         run: |
           cd openwrt
           make defconfig "TAR=$OPENWRT_TAR"
+          python3 "$GITHUB_WORKSPACE/scripts/passwall-packages.py" record --report "$GITHUB_WORKSPACE/proxy-packages.json"
           bash "$GITHUB_WORKSPACE/scripts/build-tree.sh" check-cache '${{ matrix.config_file }}'
           echo "Selected target:"
           grep '^CONFIG_TARGET' .config | sort || true
@@ -210,9 +213,11 @@ jobs:
           board=$(sed -n 's/^CONFIG_TARGET_BOARD="\(.*\)"/\1/p' openwrt/.config)
           subtarget=$(sed -n 's/^CONFIG_TARGET_SUBTARGET="\(.*\)"/\1/p' openwrt/.config)
           source_dir="$GITHUB_WORKSPACE/openwrt/bin/targets/$board/$subtarget"
+          python3 scripts/passwall-packages.py verify --report proxy-packages.json --images "$source_dir"
           firmware_dir="$GITHUB_WORKSPACE/firmware"
           mkdir -p "$firmware_dir"
           find "$source_dir" -maxdepth 1 -type f -exec cp -t "$firmware_dir" -- {} +
+          cp proxy-packages.json "$firmware_dir/"
           echo "FIRMWARE=$firmware_dir" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 

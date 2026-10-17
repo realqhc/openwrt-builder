@@ -1,85 +1,24 @@
-# OpenWrt builder
+# OpenWrt 固件
 
-Each matrix job updates OpenWrt `main` and all feeds before building. Source
-versions are not pinned between automatic runs. Persistent checkouts in the
-builder container are isolated by configuration:
+基于 OpenWrt `main`，通过 GitHub Actions 编译以下设备的固件：
 
-| Configuration | Build directory |
-| --- | --- |
-| `acrh17.config` | `/home/ubuntu/build/openwrt-acrh17` |
-| `x86.config` | `/home/ubuntu/build/openwrt-x86` |
-| `mt6000.config` | `/home/ubuntu/build/openwrt-mt6000` |
+| 设备 | 配置 | 升级镜像 |
+| --- | --- | --- |
+| ASUS RT-ACRH17（RT-AC42U） | `acrh17.config` | `asus_rt-ac42u-squashfs-sysupgrade.bin` |
+| x86-64（UEFI、ext4） | `x86.config` | `x86-64-generic-ext4-combined-efi.img.gz` |
+| GL.iNet GL-MT6000 | `mt6000.config` | `glinet_gl-mt6000-squashfs-sysupgrade.bin` |
 
-The first run creates each checkout and compiles it from scratch. Existing build
-objects are not moved from the legacy `/home/ubuntu/build/openwrt`: host tools
-can embed their original absolute paths. New checkouts borrow Git objects from
-the legacy checkout when available, then dissociate from it.
+## 下载与构建
 
-The trees share `/home/ubuntu/build/dl` through their `dl` symlinks. Source
-archives, Go module downloads and Cargo caches can be reused across targets.
-Cargo's mirror configuration is written to the shared `dl/cargo/config.toml`.
-Build outputs, staging directories and feeds stay isolated at their existing
-absolute paths.
+在 [Releases](https://github.com/realqhc/openwrt-builder/releases) 下载对应设备的固件，并使用同一版本的 `sha256sums` 校验。升级前备份配置，确认设备型号及镜像类型。
 
-Subsequent runs retain `build_dir`, `staging_dir`, binary packages, downloads,
-feeds, signing keys and ccache. OpenWrt checks which packages need rebuilding.
-Changes to host-tool/toolchain sources or compiler configuration trigger
-`make dirclean` to rebuild dependent objects. Unchanged Go sources are kept in a
-separate feed on branch `27.x` (Go 1.27.2 at the time of this change), meeting
-Tailscale 1.104.1's Go 1.27.1 minimum. Sing-box 1.14.0 no longer uses the old
-`go-json-experiment` dependency that required the earlier Go 1.26 pin.
-Old firmware files are removed before building;
-uploads are copied into the runner workspace without deleting binary packages.
+手动构建：进入 **Actions → Build OpenWrt → Run workflow**。一次运行依次编译三台设备，也会按工作流中的计划自动构建。每次构建更新 OpenWrt 与 feeds，因此不同批次的软件版本可能变化。
 
-Source extraction uses the make command-line setting
-`TAR="env TAR_OPTIONS=--no-same-owner tar"`, preserving OpenWrt's extraction
-flags and old-style `tar xvf` calls while avoiding archive ownership changes
-inside nspawn. The full extraction flags must not be passed through make's
-`TAR_OPTIONS`: GNU tar would also read them from the environment and apply
-`-f` twice. This does not modify upstream `include/unpack.mk`.
+## 软件源规则
 
-Rust uses the feed's original build configuration, which
-already disables CI LLVM downloads; no local Rust Makefile patch is applied.
+- 代理核心、相关工具和规则数据优先使用 [Passwall 软件源](https://github.com/Openwrt-Passwall/openwrt-passwall-packages)。明确选择的配方见 [`scripts/passwall-packages.py`](scripts/passwall-packages.py)。
+- 其他包继续使用原有软件源；Go 工具链保留单独指定的来源。新增同名包需审核后加入优先列表，不自动覆盖系统基础库。
+- 构建检查实际软件源和版本，发布前核对固件包清单。检查失败时不发布该固件。
+- 每个 Release 附带 `proxy-packages.json`、`feeds.buildinfo` 和软件包 `.manifest`，可查询实际使用的来源、提交及版本。
 
-Both workflows share one GitHub Actions concurrency group, with cancellation
-disabled. Matrix jobs run one at a time on the current builder. Cleanup waits
-for an active build to finish, and builds wait for active cleanup.
-
-The existing quarterly cleanup schedule runs `make distclean` in all three
-checkouts and the legacy checkout, if present. It removes **all build outputs,
-feeds, ccache and generated signing keys**, while retaining the Git checkouts.
-Each tree's `dl` symlink is unlinked; the shared downloads and Cargo cache are
-deleted once after every tree cleans successfully. The next build updates
-sources and rebuilds from scratch. Manual preparation, migration, builds and
-cleanup inside the container must only run while Actions is idle.
-
-For existing installations, merge downloads once while all builds are idle:
-
-```bash
-bash scripts/build-tree.sh migrate-downloads
-```
-
-This merges all three target caches and the legacy checkout's cache into the
-common directory, then replaces their `dl` folders with symlinks. Existing
-common files are retained; unfinished downloads and Cargo lock/database files
-are skipped. Go module sources are re-extracted from their cached download
-archives. A failed copy leaves the source directory intact. Repeating the
-command is safe, and future preparation creates the links for new checkouts.
-
-The helper can also be run manually with `OPENWRT_BUILD_ROOT` set to a scratch
-directory for validation:
-
-```bash
-bash scripts/build-tree.sh prepare x86.config
-# After applying feeds and DIY scripts:
-make -C "${OPENWRT_BUILD_ROOT:-/home/ubuntu/build}/openwrt-x86" defconfig 'TAR=env TAR_OPTIONS=--no-same-owner tar'
-bash scripts/build-tree.sh check-cache x86.config
-# Destructive: clears all build results and caches in the managed checkouts.
-bash scripts/build-tree.sh clean
-```
-
-This is an incremental source build. SDK and ImageBuilder generation are not
-enabled by these workflows.
-
-Run the cache migration and cleanup regression checks with
-`python3 scripts/test-build-tree.py`.
+设备软件选择在各自的 `.config` 文件中；自定义 feeds 和构建调整分别位于 `diy-part1.sh`、`diy-part2.sh`。
