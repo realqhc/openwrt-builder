@@ -29,12 +29,6 @@ inside nspawn. The full extraction flags must not be passed through make's
 `TAR_OPTIONS`: GNU tar would also read them from the environment and apply
 `-f` twice. This does not modify upstream `include/unpack.mk`.
 
-Source preparation also handles the short-lived upstream libjson-c duplicate
-patch from October 16, 2026, matching upstream revert `71e991a8c0`. It removes
-the duplicate only when both patches match the known upstream blobs, retaining
-the original memory-leak fix. Sources that already contain the revert need no
-change.
-
 Rust uses the feed's original build configuration, which
 already disables CI LLVM downloads; no local Rust Makefile patch is applied.
 

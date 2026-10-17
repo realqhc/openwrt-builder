@@ -37,19 +37,6 @@ prepare_tree() {
   git clean -ffdx -e /dl/ -e /.ccache/ -e /build_dir/ -e /staging_dir/ \
     -e /bin/ -e /feeds/ -e /.builder-cache/ -e '/key-build*'
 
-  # Mirror upstream revert 71e991a8c0 if the source mirror still serves the
-  # short-lived duplicate json-c fix. Keep the original memory-leak fix, and
-  # leave other patch revisions alone by checking both blob hashes.
-  local json_c_patches=package/libs/libjson-c/patches
-  local original_fix="$json_c_patches/002-free-objects-outside-assert-in-json_object_put.patch"
-  local duplicate_fix="$json_c_patches/010-json_object_put-free-container-outside-assert.patch"
-  if [[ -f "$original_fix" && -f "$duplicate_fix" ]] && \
-    [[ $(git hash-object --no-filters "$original_fix") == ec347958820b41c490d33449c2d3265c66e2ecbf ]] && \
-    [[ $(git hash-object --no-filters "$duplicate_fix") == c436adb0d7ee37cd2644ca14b34a9e5928aa25e2 ]]; then
-    echo 'Removing duplicate libjson-c patch (upstream revert 71e991a8c0).'
-    rm -- "$duplicate_fix"
-  fi
-
   # Keep binary packages, but never publish images left by an earlier run.
   if [[ -d bin/targets ]]; then
     find bin/targets -mindepth 3 -maxdepth 3 -type f -delete
