@@ -84,7 +84,17 @@ prepare_tree() {
   local feed
   for feed in feeds/*; do
     [[ -d "$feed/.git" ]] || continue
-    git -C "$feed" reset --hard HEAD
+    # These are disposable source caches, not development branches. Refresh
+    # their tracking refs before resetting so an upstream force-push cannot
+    # leave scripts/feeds update trying to fast-forward divergent histories.
+    # Detached checkouts may represent pinned commits; leave those pins intact.
+    if git -C "$feed" symbolic-ref -q HEAD >/dev/null && \
+      git -C "$feed" rev-parse --verify '@{upstream}' >/dev/null 2>&1; then
+      git -C "$feed" fetch --prune
+      git -C "$feed" reset --hard '@{upstream}'
+    else
+      git -C "$feed" reset --hard HEAD
+    fi
     git -C "$feed" clean -ffdx
   done
   git log -1 --oneline
