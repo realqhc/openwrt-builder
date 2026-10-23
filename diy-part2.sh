@@ -63,3 +63,6 @@
 rm -rf feeds/packages/lang/golang
 # Preserve the include path used by Go packages while reusing the separate feed.
 ln -s ../../golang feeds/packages/lang/golang
+
+# Fix banIP source in the feed, so the installed package includes the repair.
+python3 "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/scripts/patch-banip.py" "$PWD" || exit 1

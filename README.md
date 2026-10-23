@@ -22,3 +22,9 @@
 - 每个 Release 附带 `proxy-packages.json`、`feeds.buildinfo` 和软件包 `.manifest`，可查询实际使用的来源、提交及版本。
 
 设备软件选择在各自的 `.config` 文件中；自定义 feeds 和构建调整分别位于 `diy-part1.sh`、`diy-part2.sh`。
+
+## banIP 日志解析修复
+
+构建时，`diy-part2.sh` 调用 `scripts/patch-banip.py` 修复 banIP 对 `[IPv6]:端口:` 日志格式的地址提取，避免将分隔冒号带入封禁地址。补丁修改软件包源码并增加包 release 后缀，因此固件自带修复；不包含运行配置或封禁名单。重复应用会跳过，无法识别的上游实现会中止构建，需复核后调整补丁。
+
+可运行 `python3 scripts/test-patch-banip.py` 验证补丁重复应用、未知实现拒绝及 IPv6 地址边界；测试需要 `gawk`。后续单独安装未修复的上游 banIP 软件包仍可能覆盖此修复。
