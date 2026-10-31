@@ -72,7 +72,7 @@ class BanIPFixTests(unittest.TestCase):
         first = self.source.read_text()
         module.patch(self.tree)
         self.assertEqual(self.source.read_text(), first)
-        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=2.2\n')
+        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=3\n')
         self.assertIn(module.NEW_PICK, first)
         self.assertNotIn(module.OLD_NORMALIZE, first)
 
@@ -84,13 +84,40 @@ class BanIPFixTests(unittest.TestCase):
         module.patch(self.tree)
         module.patch(self.tree)
         self.assertEqual(self.source.read_text(), expected)
-        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=2.1.2\n')
+        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=3\n')
 
     def test_already_fixed_upstream_keeps_release(self):
         module.patch(self.tree)
         self.recipe.write_text('PKG_RELEASE:=3\n')
         module.patch(self.tree)
         self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=3\n')
+
+    def test_current_release_and_apk_revision(self):
+        self.recipe.write_text('PKG_RELEASE:=3\n')
+        module.patch(self.tree)
+        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=4\n')
+        revision = self.recipe.read_text().strip().split(':=')[1]
+        self.assertRegex('1.9.1-r' + revision, r'^1\.9\.1-r[0-9]+$')
+        module.patch(self.tree)
+        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=4\n')
+
+    def test_migrate_already_patched_dotted_release(self):
+        module.patch(self.tree)
+        expected = self.source.read_bytes()
+        for release in ('3.2', '3.1.2', '3.1'):
+            with self.subTest(release=release):
+                self.recipe.write_text('PKG_RELEASE:=' + release + '\n')
+                module.patch(self.tree)
+                module.patch(self.tree)
+                self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=4\n')
+                self.assertEqual(self.source.read_bytes(), expected)
+
+    def test_invalid_release_on_patched_source_stops(self):
+        module.patch(self.tree)
+        for release in ('$(AUTORELEASE)', '3.7', '3.2.2', '3\nPKG_RELEASE:=4'):
+            with self.subTest(release=release):
+                self.recipe.write_text('PKG_RELEASE:=' + release + '\n')
+                self.assert_rejected_without_changes()
 
     def test_unknown_parser_stops(self):
         self.source.write_text(ORIGINAL.replace('function pick_ip(', 'function changed_pick_ip('))

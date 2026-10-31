@@ -56,26 +56,31 @@ def patch(tree: Path) -> None:
     if not source.is_file():
         raise SystemExit('banIP source missing; run after updating the packages feed')
     text = source.read_text()
-    if (text.count(NEW_PICK) == 1 and text.count(NEW_BEGIN) == 1
+    already_patched = (text.count(NEW_PICK) == 1 and text.count(NEW_BEGIN) == 1
             and OLD_PICK not in text and OLD_NORMALIZE not in text
-            and LEGACY_NORMALIZE not in text):
-        print('banIP peer extraction fix already present')
-        return
+            and LEGACY_NORMALIZE not in text)
     normalizers = [block for block in (OLD_NORMALIZE, LEGACY_NORMALIZE)
                    if text.count(block) == 1]
-    if (text.count(OLD_PICK) != 1 or text.count(OLD_BEGIN) != 1
+    if not already_patched and (text.count(OLD_PICK) != 1 or text.count(OLD_BEGIN) != 1
             or NEW_PICK in text or NEW_BEGIN in text
             or len(normalizers) != 1
             or text.count(OLD_NORMALIZE) + text.count(LEGACY_NORMALIZE) != 1):
         raise SystemExit('Unrecognized banIP peer parser; review upstream before building')
     makefile = package / 'Makefile'
     recipe = makefile.read_text()
-    # Use a new suffix so persistent trees cannot reuse the earlier .1 fix.
-    recipe, count = re.subn(r'^(PKG_RELEASE:=)([0-9]+(?:\.[0-9]+)*)$',
-                            r'\g<1>\g<2>.2', recipe, flags=re.MULTILINE)
-    if count != 1:
+    # APK requires an integer revision. Migrate only suffixes emitted by our
+    # previous patches, preserving the original upstream release as the base.
+    releases = re.findall(r'^PKG_RELEASE:=(.*)$', recipe, flags=re.MULTILINE)
+    match = re.fullmatch(r'([0-9]+)(\.1(?:\.2)?|\.2)?', releases[0]) if len(releases) == 1 else None
+    if match is None:
         raise SystemExit('Unrecognized banIP package release; no files changed')
-    patched = (text.replace(OLD_PICK, NEW_PICK)
+    if already_patched and match[2] is None:
+        print('banIP peer extraction fix already present')
+        return
+    release = str(int(match[1]) + 1)
+    recipe = re.sub(r'^PKG_RELEASE:=.*$', 'PKG_RELEASE:=' + release,
+                    recipe, flags=re.MULTILINE)
+    patched = text if already_patched else (text.replace(OLD_PICK, NEW_PICK)
                .replace(OLD_BEGIN, NEW_BEGIN)
                .replace(normalizers[0], ''))
     source.write_text(patched)

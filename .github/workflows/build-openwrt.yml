@@ -17,6 +17,20 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
+      targets:
+        description: 'Targets to build'
+        type: choice
+        options:
+          - all
+          - x86-mt6000
+          - x86
+          - mt6000
+          - acrh17
+        default: all
+      publish:
+        description: 'Upload firmware and publish releases'
+        type: boolean
+        default: true
       ssh:
         description: 'SSH connection to Actions'
         required: false
@@ -41,10 +55,10 @@ env:
   DIY_P2_SH: diy-part2.sh
   SSH_ACTIONS: false
   UPLOAD_BIN_DIR: true
-  UPLOAD_FIRMWARE: true
+  UPLOAD_FIRMWARE: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
   UPLOAD_COWTRANSFER: false
   UPLOAD_WETRANSFER: false
-  UPLOAD_RELEASE: true
+  UPLOAD_RELEASE: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
   TZ: Asia/Shanghai
   USER: ubuntu
   # Set only the ownership option in tar's environment. This keeps OpenWrt's
@@ -61,7 +75,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        config_file: [acrh17.config, x86.config, mt6000.config]
+        config_file: ${{ fromJSON(inputs.targets == 'x86-mt6000' && '["x86.config","mt6000.config"]' || inputs.targets == 'x86' && '["x86.config"]' || inputs.targets == 'mt6000' && '["mt6000.config"]' || inputs.targets == 'acrh17' && '["acrh17.config"]' || '["acrh17.config","x86.config","mt6000.config"]') }}
     runs-on: [self-hosted, linux, x64]
 
     steps:
@@ -249,12 +263,14 @@ jobs:
           files: ${{ env.FIRMWARE }}/*
 
       - name: Delete workflow runs
+        if: env.UPLOAD_RELEASE == 'true'
         uses: realqhc/delete-workflow-runs@main
         with:
           retain_days: 0
           keep_minimum_runs: 6
 
       - name: Remove old Releases
+        if: env.UPLOAD_RELEASE == 'true'
         uses: realqhc/delete-release-action@master
         with:
           release-drop: true
