@@ -7,12 +7,6 @@
 # Author: P3TERX
 # Blog: https://p3terx.com
 #=============================================================
-git fetch origin pull/25925/head || exit 1
-if ! git merge-base --is-ancestor FETCH_HEAD HEAD; then
-  git -c user.name="builder" -c user.email="builder@localhost" merge --no-edit FETCH_HEAD || exit 1
-  rm -rf build_dir/target-*/linux-*
-fi
-
 sed -i 's,git.openwrt.org/feed,github.com/openwrt,g; s,git.openwrt.org/project,github.com/openwrt,g' feeds.conf.default
 echo "src-git openwrt_passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git" >> "feeds.conf.default"
 echo "src-git openwrt_passwall2 https://github.com/Openwrt-Passwall/openwrt-passwall2.git" >> "feeds.conf.default"
