@@ -50,21 +50,90 @@ LEGACY_NORMALIZE = r'''				$0 = gensub(/(([0-9]{1,3}\.){3}[0-9]{1,3}):[0-9]+/, "
 '''
 
 
+R5_PICK = r'''			function pick_ip(s, mode, m, res, c, pre, last) {
+				res = ""
+				last = " "
+				while (match(s, /([0-9]{1,3}\.){3}[0-9]{1,3}|([A-Fa-f0-9]{0,4}:){2,7}[A-Fa-f0-9]{0,4}/, m)) {
+					c = m[0]
+					pre = (RSTART > 1) ? substr(s, RSTART - 1, 1) : last
+					last = substr(c, length(c), 1)
+					s = substr(s, RSTART + RLENGTH)
+					if (c ~ /^:[^:]/) {
+						c = substr(c, 2)
+						pre = ":"
+					}
+					if (c ~ /[^:]:$/) c = substr(c, 1, length(c) - 1)
+					if (pre ~ /[A-Za-z0-9_]/ || !valid_ip(c)) continue
+					res = c
+					if (mode == "first") break
+				}
+				return res
+			}
+'''
+
+# Keep upstream address validation and apply its boundary checks to bare addresses.
+R5_NEW_PICK = r'''			function pick_ip(s, mode, m, res, c, pre, last) {
+				res = ""
+				last = " "
+				while (match(s, peer_re, m)) {
+					c = m[1] != "" ? m[1] : m[0]
+					pre = (RSTART > 1) ? substr(s, RSTART - 1, 1) : last
+					last = substr(m[0], RLENGTH, 1)
+					s = substr(s, RSTART + RLENGTH)
+					if (m[1] != "") {
+						pre = "["
+					} else if (c ~ /\./) {
+						sub(/:[0-9]+$/, "", c)
+					} else {
+						if (c ~ /^:[^:]/) {
+							c = substr(c, 2)
+							pre = ":"
+						}
+						if (c ~ /[^:]:$/) c = substr(c, 1, length(c) - 1)
+					}
+					if (pre ~ /[A-Za-z0-9_]/ || !valid_ip(c)) continue
+					res = c
+					if (mode == "first") break
+				}
+				return res
+			}
+'''
+
+R5_NORMALIZE = r'''				$0 = gensub(/(^|[^A-Fa-f0-9:])::[Ff]{4}:(([0-9]{1,3}\.){3}[0-9]{1,3})/, "\\1\\2", "g", $0)
+				sub(/\]:[0-9]+/, "]", $0)
+				gsub(/[<>[\]]/, "", $0)
+'''
+
+R5_NEW_NORMALIZE = r'''				$0 = gensub(/(^|[^A-Fa-f0-9:])::[Ff]{4}:(([0-9]{1,3}\.){3}[0-9]{1,3})/, "\\1\\2", "g", $0)
+				gsub(/[<>]/, " ", $0)
+'''
+
+
 def patch(tree: Path) -> None:
     package = tree / 'feeds/packages/net/banip'
     source = package / 'files/banip-functions.sh'
     if not source.is_file():
         raise SystemExit('banIP source missing; run after updating the packages feed')
     text = source.read_text()
-    already_patched = (text.count(NEW_PICK) == 1 and text.count(NEW_BEGIN) == 1
-            and OLD_PICK not in text and OLD_NORMALIZE not in text
-            and LEGACY_NORMALIZE not in text)
-    normalizers = [block for block in (OLD_NORMALIZE, LEGACY_NORMALIZE)
-                   if text.count(block) == 1]
-    if not already_patched and (text.count(OLD_PICK) != 1 or text.count(OLD_BEGIN) != 1
-            or NEW_PICK in text or NEW_BEGIN in text
-            or len(normalizers) != 1
-            or text.count(OLD_NORMALIZE) + text.count(LEGACY_NORMALIZE) != 1):
+    changes = (
+        (OLD_PICK, NEW_PICK, OLD_NORMALIZE, ''),
+        (OLD_PICK, NEW_PICK, LEGACY_NORMALIZE, ''),
+        (R5_PICK, R5_NEW_PICK, R5_NORMALIZE, R5_NEW_NORMALIZE),
+    )
+    pickers = {block for old, new, _, _ in changes for block in (old, new)}
+    normalizers = {block for _, _, old, new in changes for block in (old, new) if block}
+    picker_count = sum(text.count(block) for block in pickers)
+    normalizer_count = sum(text.count(block) for block in normalizers)
+    already_patched = (
+        picker_count == 1 and text.count(NEW_BEGIN) == 1 and OLD_BEGIN not in text
+        and ((NEW_PICK in text and normalizer_count == 0)
+             or (R5_NEW_PICK in text and R5_NEW_NORMALIZE in text and normalizer_count == 1))
+    )
+    change = next((entry for entry in changes if entry[0] in text and entry[2] in text), None)
+    if not already_patched and (
+        change is None or picker_count != 1 or normalizer_count != 1
+        or text.count(OLD_BEGIN) != 1 or NEW_BEGIN in text
+    ):
         raise SystemExit('Unrecognized banIP peer parser; review upstream before building')
     makefile = package / 'Makefile'
     recipe = makefile.read_text()
@@ -80,10 +149,11 @@ def patch(tree: Path) -> None:
     release = str(int(match[1]) + 1)
     recipe = re.sub(r'^PKG_RELEASE:=.*$', 'PKG_RELEASE:=' + release,
                     recipe, flags=re.MULTILINE)
-    patched = text if already_patched else (text.replace(OLD_PICK, NEW_PICK)
-               .replace(OLD_BEGIN, NEW_BEGIN)
-               .replace(normalizers[0], ''))
-    source.write_text(patched)
+    if not already_patched:
+        picker, new_picker, normalizer, new_normalizer = change
+        source.write_text(text.replace(picker, new_picker)
+                          .replace(OLD_BEGIN, NEW_BEGIN)
+                          .replace(normalizer, new_normalizer))
     makefile.write_text(recipe)
     print('Applied banIP peer extraction fix and bumped package release')
 

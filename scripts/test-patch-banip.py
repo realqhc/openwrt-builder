@@ -11,6 +11,8 @@ spec = importlib.util.spec_from_file_location('patch_banip', Path(__file__).with
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 ORIGINAL = (Path(__file__).parent / 'fixtures/banip-log-parser.awk').read_text()
+# Extracted from openwrt/packages at c837db774dd0473b655e272a0829f341a44f2ba7.
+UPSTREAM_R5 = (Path(__file__).parent / 'fixtures/banip-log-parser-r5.awk').read_text()
 
 # Synthetic inputs use documentation addresses and link-local zone examples.
 CASES = [
@@ -140,8 +142,29 @@ class BanIPFixTests(unittest.TestCase):
         self.source.write_text(self.source.read_text() + module.LEGACY_NORMALIZE)
         self.assert_rejected_without_changes()
 
+    def test_r5_parser_and_revision(self):
+        self.source.write_text(UPSTREAM_R5)
+        self.recipe.write_text('PKG_RELEASE:=5\n')
+        module.patch(self.tree)
+        patched = self.source.read_bytes()
+        module.patch(self.tree)
+        self.assertEqual(self.source.read_bytes(), patched)
+        self.assertEqual(self.recipe.read_text(), 'PKG_RELEASE:=6\n')
+        # The upstream validator rejects the unspecified address.
+        cases = [(record, None, None) if first == '::' else (record, first, last)
+                 for record, first, last in CASES]
+        cases.extend([
+            ('peer [::ffff:192.0.2.15]:443: error', '192.0.2.15', '192.0.2.15'),
+            ('peer [2001::1::2]:443: error', None, None),
+            ('peer [2001:db8:1]:443: error', None, None),
+        ])
+        self.check_parser_behavior(cases)
+
     def test_actual_parser_behavior(self):
         module.patch(self.tree)
+        self.check_parser_behavior(CASES)
+
+    def check_parser_behavior(self, cases):
         program = self.source.read_text()
         def run(text, mapping='', threshold=1):
             return subprocess.run(
@@ -150,7 +173,7 @@ class BanIPFixTests(unittest.TestCase):
                 env=dict(os.environ, ban_logterm_map=mapping)).stdout
         def block(ip):
             return '' if ip is None else 'BLOCK ' + ip + (' .v4\n' if '.' in ip else ' .v6\n')
-        for record, first, last in CASES:
+        for record, first, last in cases:
             for mode, expected in [('first', first), ('last', last)]:
                 with self.subTest(record=record, mode=mode):
                     self.assertEqual(run(record + '\n', mode + '\x1f.*'), block(expected))
